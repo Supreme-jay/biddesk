@@ -93,7 +93,9 @@ def _sorted_for_action(results: list[Assessment]) -> list[Assessment]:
 
 def write_csv(results: list[Assessment], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
+    # utf-8-sig: Excel on Windows assumes the system codepage without a BOM and
+    # mangles every non-ASCII character in the client's working file.
+    with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
         writer.writerow(
             ["id", "ref", "obligation", "verdict", "critical",

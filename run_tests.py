@@ -10,7 +10,10 @@ ROOT = Path(__file__).resolve().parent
 SUITES = [
     ("scoring quality", "tests/evaluate.py"),
     ("document readers", "tests/test_docparse.py"),
+    ("pdf reader", "tests/test_pdf.py"),
     ("failure paths", "tests/test_robustness.py"),
+    ("drafting safety", "tests/test_draft.py"),
+    ("folder watch", "tests/test_watch.py"),
 ]
 
 

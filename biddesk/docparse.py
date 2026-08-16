@@ -13,11 +13,13 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from . import pdfread
+
 # WordprocessingML / SpreadsheetML namespaces
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
-SUPPORTED = {".txt", ".md", ".docx", ".xlsx"}
+SUPPORTED = {".txt", ".md", ".docx", ".xlsx", ".pdf"}
 
 
 class UnsupportedDocument(Exception):
@@ -40,8 +42,12 @@ def read(path: Path) -> str:
             return _read_docx(path)
         if suffix == ".xlsx":
             return _read_xlsx(path)
+        if suffix == ".pdf":
+            return _read_pdf(path)
     except UnsupportedDocument:
         raise
+    except pdfread.NotExtractable as exc:
+        raise UnsupportedDocument(f"{path.name}: {exc}.") from None
     except zipfile.BadZipFile:
         if path.stat().st_size == 0:
             raise UnsupportedDocument(
@@ -60,9 +66,27 @@ def read(path: Path) -> str:
         raise UnsupportedDocument(f"{path.name}: cannot be read ({exc}).") from None
 
     raise UnsupportedDocument(
-        f"{path.name}: no reader for '{suffix}'. Supported: {', '.join(sorted(SUPPORTED))}. "
-        "PDFs need conversion to .docx or .txt first."
+        f"{path.name}: no reader for '{suffix}'. Supported: {', '.join(sorted(SUPPORTED))}."
     )
+
+
+def _read_pdf(path: Path) -> str:
+    """Extract PDF text, refusing the file when extraction produced nonsense.
+
+    A PDF whose fonts carry no usable encoding extracts to consistent mojibake.
+    That text would still yield 'requirements', which would be scored against
+    the proposal library and reported as gaps -- a confidently wrong report.
+    Refusing is the only safe outcome.
+    """
+    text = pdfread.extract(path.read_bytes())
+    if pdfread.looks_garbled(text):
+        raise UnsupportedDocument(
+            f"{path.name}: text was extracted but is not readable -- the PDF likely "
+            "uses embedded fonts with no standard encoding. Open it and 'Save As' or "
+            "export to .docx, then re-run. (Refusing rather than scoring unreadable "
+            "text, which would report every requirement as a gap.)"
+        )
+    return text
 
 
 def _read_docx(path: Path) -> str:

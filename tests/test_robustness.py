@@ -78,9 +78,14 @@ def main() -> int:
         badxlsx.write_bytes(b"this is plainly not a zip")
         check_raises("corrupt xlsx", badxlsx, "sheet.xlsx", "save as")
 
-        pdf = root / "spec.pdf"
-        pdf.write_bytes(b"%PDF-1.7")
-        check_raises("pdf rejected with guidance", pdf, "no reader", "conversion")
+        # PDFs are read now (tests/test_pdf.py); .rtf still has no reader.
+        rtf = root / "spec.rtf"
+        rtf.write_text("{" + chr(92) + "rtf1 hello}", encoding="utf-8")
+        check_raises("unsupported format rejected with guidance", rtf, "no reader", ".docx")
+
+        textless = root / "scan.pdf"
+        textless.write_bytes(b"%PDF-1.7\ntrailer<</Root 1 0 R>>\n%%EOF")
+        check_raises("pdf with no text rejected", textless, "scan.pdf", "scanned")
 
         print("\ncorpus loading")
         corpus = root / "corpus"
@@ -92,16 +97,20 @@ def main() -> int:
         )
         (corpus / "ruined.docx").write_bytes(b"\xd0\xcf\x11\xe0not a zip")
         (corpus / "blank.md").write_text("   \n\n  \n", encoding="utf-8")
-        (corpus / "notes.pdf").write_bytes(b"%PDF-1.7")
+        (corpus / "notes.rtf").write_text("{" + chr(92) + "rtf1}", encoding="utf-8")
+        (corpus / "scan.pdf").write_bytes(b"%PDF-1.7\ntrailer<</Root 1 0 R>>\n%%EOF")
 
         chunks, skipped = retrieve.load_corpus(corpus)
         names = {name for name, _ in skipped}
         check("good file still indexed", len(chunks) >= 1, True)
-        check("all three bad files reported", names,
-              {"ruined.docx", "blank.md", "notes.pdf"})
+        check("all four bad files reported", names,
+              {"ruined.docx", "blank.md", "notes.rtf", "scan.pdf"})
         reasons = dict(skipped)
         check("blank file reason is specific", reasons["blank.md"], "no readable text found")
-        check("pdf reason names format", "unsupported format" in reasons["notes.pdf"], True)
+        check("unsupported reason names format",
+              "unsupported format" in reasons["notes.rtf"], True)
+        check("unreadable pdf reason says scanned",
+              "scanned" in reasons["scan.pdf"].lower(), True)
 
         empty_dir = root / "nothing"
         empty_dir.mkdir()

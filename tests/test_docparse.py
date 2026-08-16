@@ -129,14 +129,15 @@ def main() -> int:
         check("header row rejected", any("Question | Answer" in t for t in texts), False)
 
         print("\nerrors")
-        bad = root / "spec.pdf"
-        bad.write_bytes(b"%PDF-1.7")
+        # .rtf has no reader. (.pdf does now -- see tests/test_pdf.py.)
+        bad = root / "spec.rtf"
+        bad.write_text("{" + chr(92) + "rtf1 hello}", encoding="utf-8")
         try:
             docparse.read(bad)
             check("unsupported extension raises", False, True)
         except docparse.UnsupportedDocument as exc:
-            check_in("unsupported names the file", "spec.pdf", str(exc))
-            check_in("unsupported suggests fix", "conversion", str(exc).lower())
+            check_in("unsupported names the file", "spec.rtf", str(exc))
+            check_in("unsupported lists what is supported", ".docx", str(exc))
 
     print()
     if failures:
