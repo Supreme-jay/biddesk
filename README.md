@@ -101,9 +101,16 @@ material and running `tests/evaluate.py`.
 ## Tests
 
 ```bash
-python tests/evaluate.py      # scoring quality vs. hand-labelled ground truth
-python tests/test_docparse.py # .docx / .xlsx readers
+python run_tests.py
 ```
+
+Three suites, 60+ checks:
+
+| Suite | Covers |
+|---|---|
+| `tests/evaluate.py` | Scoring quality against hand-labelled ground truth |
+| `tests/test_docparse.py` | `.docx` / `.xlsx` readers, including split runs and table rows |
+| `tests/test_robustness.py` | Damaged files, empty inputs, CLI exit codes |
 
 `evaluate.py` scores the two error classes separately, because they are not
 equally bad:
@@ -118,6 +125,25 @@ equally bad:
 
 A **false confidence** (real gap marked ANSWERED) fails the suite outright. A
 **false gap** wastes reviewer time and is tolerated up to 2.
+
+## Handling bad input
+
+Clients send legacy `.doc` files renamed to `.docx`, zero-byte downloads,
+password-protected files, and PDFs. All of these fail with a message naming the
+file and the fix, never a traceback.
+
+Corpus files that cannot be read are **reported before the results, not
+silently skipped**. A proposal document that fails to parse is missing evidence,
+so every requirement it would have answered is reported as a gap — the report
+is then confidently wrong in exactly the direction the client will act on.
+
+```
+  WARNING: 2 file(s) in the corpus could not be read.
+  Requirements they would have answered will show as gaps.
+    - capability-statement.docx: not a valid .docx file. This is usually a
+      legacy .doc/.xls renamed to .docx...
+    - archive.pdf: unsupported format '.pdf'
+```
 
 ## Input formats
 

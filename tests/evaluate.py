@@ -45,7 +45,11 @@ GAP = {
 def main() -> int:
     lines = docparse.normalise(docparse.read(RFP))
     requirements = extract.extract(lines)
-    index = retrieve.Index(retrieve.load_corpus(CORPUS))
+    chunks, skipped = retrieve.load_corpus(CORPUS)
+    if skipped:
+        print(f"FAIL: corpus files unreadable: {skipped}")
+        return 1
+    index = retrieve.Index(chunks)
     results = {a.requirement.ref: a for a in report.assess(requirements, index)}
 
     labelled = COVERED | PARTIAL | GAP

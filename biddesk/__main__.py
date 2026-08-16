@@ -32,6 +32,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"RFP not found: {args.rfp}")
     if not args.corpus.is_dir():
         parser.error(f"Corpus directory not found: {args.corpus}")
+    if args.out.exists() and not args.out.is_dir():
+        parser.error(f"--out must be a directory, but {args.out} is a file")
     if not 0.0 < args.weak_at < args.answered_at <= 1.0:
         parser.error("thresholds must satisfy 0 < --weak-at < --answered-at <= 1")
 
@@ -45,12 +47,31 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     lines = docparse.normalise(raw)
-    requirements = extract.extract(lines)
-    if not requirements:
-        print("error: no requirements found. Is this the right document?", file=sys.stderr)
+    if not lines:
+        print(f"error: {args.rfp.name} contains no readable text.", file=sys.stderr)
         return 3
 
-    chunks = retrieve.load_corpus(args.corpus)
+    requirements = extract.extract(lines)
+    if not requirements:
+        print(
+            f"error: no requirements found in {args.rfp.name}. Expected numbered "
+            "clauses, 'shall'/'must' statements, or questions. Is this the right "
+            "document, or is the requirements schedule a separate file?",
+            file=sys.stderr,
+        )
+        return 3
+
+    chunks, skipped = retrieve.load_corpus(args.corpus)
+
+    # Printed before the results, not after: every skipped document is missing
+    # evidence, and the gaps below are overstated until it is resolved.
+    if skipped:
+        print(f"  WARNING: {len(skipped)} file(s) in the corpus could not be read.")
+        print("  Requirements they would have answered will show as gaps.")
+        for name, reason in skipped:
+            print(f"    - {name}: {reason}")
+        print()
+
     if not chunks:
         print(f"error: no readable documents in {args.corpus}", file=sys.stderr)
         return 4

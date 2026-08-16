@@ -85,18 +85,40 @@ class Chunk:
         return f"{self.doc} → {self.heading}" if self.heading else self.doc
 
 
-def load_corpus(directory: Path) -> list[Chunk]:
-    """Read every supported document in a directory into heading-level chunks."""
+def load_corpus(directory: Path) -> tuple[list[Chunk], list[tuple[str, str]]]:
+    """Read every supported document in a directory into heading-level chunks.
+
+    Returns (chunks, skipped) where skipped is [(filename, reason)].
+
+    Skipped files must never be swallowed. A proposal document that fails to
+    parse is missing evidence, so every requirement it answered is reported as
+    a gap -- the report is confidently wrong in the direction the client will
+    act on. The caller is expected to surface these loudly.
+    """
     chunks: list[Chunk] = []
+    skipped: list[tuple[str, str]] = []
+
     for path in sorted(directory.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in docparse.SUPPORTED:
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in docparse.SUPPORTED:
+            if path.suffix:  # ignore extensionless helpers, flag real documents
+                skipped.append((path.name, f"unsupported format '{path.suffix}'"))
             continue
         try:
             lines = docparse.normalise(docparse.read(path))
-        except docparse.UnsupportedDocument:
+        except docparse.UnsupportedDocument as exc:
+            reason = str(exc).split(": ", 1)[-1]
+            skipped.append((path.name, reason))
             continue
-        chunks.extend(_chunk(path.name, lines))
-    return chunks
+
+        found = _chunk(path.name, lines)
+        if not found:
+            skipped.append((path.name, "no readable text found"))
+            continue
+        chunks.extend(found)
+
+    return chunks, skipped
 
 
 def _chunk(doc: str, lines: list[str]) -> list[Chunk]:

@@ -25,14 +25,40 @@ class UnsupportedDocument(Exception):
 
 
 def read(path: Path) -> str:
-    """Return the plain text of a document, one logical block per line."""
+    """Return the plain text of a document, one logical block per line.
+
+    Every failure surfaces as UnsupportedDocument with a message naming the
+    file and what to do about it. Clients routinely send a legacy .doc renamed
+    to .docx, a zero-byte download, or a password-protected file, and a raw
+    BadZipFile traceback tells them nothing.
+    """
     suffix = path.suffix.lower()
-    if suffix in (".txt", ".md"):
-        return path.read_text(encoding="utf-8", errors="replace")
-    if suffix == ".docx":
-        return _read_docx(path)
-    if suffix == ".xlsx":
-        return _read_xlsx(path)
+    try:
+        if suffix in (".txt", ".md"):
+            return path.read_text(encoding="utf-8", errors="replace")
+        if suffix == ".docx":
+            return _read_docx(path)
+        if suffix == ".xlsx":
+            return _read_xlsx(path)
+    except UnsupportedDocument:
+        raise
+    except zipfile.BadZipFile:
+        if path.stat().st_size == 0:
+            raise UnsupportedDocument(
+                f"{path.name}: file is empty (0 bytes). The download may have failed."
+            ) from None
+        raise UnsupportedDocument(
+            f"{path.name}: not a valid {suffix} file. This is usually a legacy .doc/.xls "
+            f"renamed to {suffix}, or a password-protected file. Open it in Office and "
+            f"'Save As' a current {suffix}."
+        ) from None
+    except ET.ParseError as exc:
+        raise UnsupportedDocument(
+            f"{path.name}: the document XML is damaged ({exc}). Re-save it from Office."
+        ) from None
+    except (OSError, PermissionError) as exc:
+        raise UnsupportedDocument(f"{path.name}: cannot be read ({exc}).") from None
+
     raise UnsupportedDocument(
         f"{path.name}: no reader for '{suffix}'. Supported: {', '.join(sorted(SUPPORTED))}. "
         "PDFs need conversion to .docx or .txt first."
