@@ -14,6 +14,9 @@ SUITES = [
     ("failure paths", "tests/test_robustness.py"),
     ("drafting safety", "tests/test_draft.py"),
     ("folder watch", "tests/test_watch.py"),
+    ("grant extraction", "tests/test_grant_extract.py"),
+    ("grant scoring", "tests/test_grant_score.py"),
+    ("grant drafting", "tests/test_grant_draft.py"),
 ]
 
 

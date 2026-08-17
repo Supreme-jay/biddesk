@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "biddesk"
 version = "0.1.0"
-description = "Score an incoming RFP against your past proposals and find what you cannot answer."
+description = "Bid Desk and Grant Desk — score tenders and draft grant applications against your past material."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Michael Kingsley", email = "ifeanyinwadike13@gmail.com" }]
-keywords = ["rfp", "tender", "bid", "proposal", "coverage", "scoring"]
+keywords = ["rfp", "tender", "bid", "proposal", "coverage", "scoring", "grant", "funding"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -24,6 +24,7 @@ draft = ["anthropic>=0.30"]
 
 [project.scripts]
 biddesk = "biddesk.__main__:main"
+grantdesk = "grantdesk.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["biddesk*"]
+include = ["biddesk*", "grantdesk*"]
