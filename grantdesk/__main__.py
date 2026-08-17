@@ -1,7 +1,8 @@
 """Command line entry point.
 
-    python -m grantdesk run   --call <file> --library <dir>    score a grant call
-    python -m grantdesk draft --call <file> --library <dir>    score and draft
+    python -m grantdesk run   --call <file> --library <dir>    analyse a grant call
+    python -m grantdesk write --call <file> --library <dir>    draft locally (free)
+    python -m grantdesk draft --call <file> --library <dir>    draft with AI (API key)
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from biddesk import docparse
 
 from . import extract, score as scoring
 
-COMMANDS = ("run", "draft")
+COMMANDS = ("run", "write", "draft")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(scored, int):
         return scored
 
+    if args.command == "write":
+        return _write(args, scored)
     if args.command == "draft":
         return _draft(args, scored)
     return 0
@@ -61,7 +64,8 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="grantdesk",
         description="Draft a grant application from a funding call and your past applications.",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True, metavar="{run,draft}")
+    subparsers = parser.add_subparsers(dest="command", required=True,
+                                        metavar="{run,write,draft}")
 
     def shared(sub: argparse.ArgumentParser) -> None:
         sub.add_argument("--library", required=True, type=Path,
@@ -74,8 +78,14 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="Grant call / funding brief (.pdf .docx .xlsx .md .txt)")
     shared(run)
 
+    write = subparsers.add_parser(
+        "write", help="Draft every section locally — no API key, no cost")
+    write.add_argument("--call", required=True, type=Path,
+                       help="Grant call / funding brief")
+    shared(write)
+
     draft = subparsers.add_parser(
-        "draft", help="Analyse and draft every section (needs an API key)")
+        "draft", help="Draft with AI for higher quality (needs ANTHROPIC_API_KEY)")
     draft.add_argument("--call", required=True, type=Path, help="Grant call / funding brief")
     draft.add_argument("--effort", default="high",
                        choices=["low", "medium", "high", "xhigh", "max"],
@@ -139,10 +149,9 @@ def _score(args, parser):
         print(f"  Word limits  {stats['with_word_limit']} sections have limits")
     print()
     print(f"  EVIDENCED    {evidenced:>3}  past material available")
-    print(f"  GENERATED    {generated:>3}  will need AI draft + human review")
+    print(f"  GENERATED    {generated:>3}  will need new material")
     print()
 
-    # Write analysis report even in run mode
     from . import render
     render.write_analysis_md(results, args.out / "analysis.md",
                              {"call": args.call.stem, "chunks": len(chunks)})
@@ -151,10 +160,31 @@ def _score(args, parser):
     return results
 
 
+def _write(args, results) -> int:
+    from . import localdraft, render
+
+    print(f"\n  Drafting     {len(results)} sections (local engine — no API key needed)")
+
+    drafts = localdraft.generate(results)
+
+    render.write_markdown(drafts, results, args.out / "application.md",
+                          {"call": args.call.stem})
+    render.write_csv(drafts, results, args.out / "sections.csv")
+    render.write_html(drafts, results, args.out / "application.html",
+                      {"call": args.call.stem})
+
+    evidenced = sum(1 for d in drafts if d.source_tag == "EVIDENCED")
+    generated = sum(1 for d in drafts if d.source_tag == "GENERATED")
+    print(f"\n  From past material  {evidenced}")
+    print(f"  Template drafts     {generated}  (fill [PLACEHOLDER] items)")
+    print(f"  Written to          {args.out}/application.{{html,md,csv}}")
+    return 0
+
+
 def _draft(args, results) -> int:
     from . import draft as drafting, render
 
-    print(f"\n  Drafting     {len(results)} sections")
+    print(f"\n  Drafting     {len(results)} sections (AI-powered)")
 
     if args.dry_run:
         prompts = drafting.preview(results, args.batch_size)

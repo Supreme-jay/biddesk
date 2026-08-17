@@ -17,6 +17,7 @@ SUITES = [
     ("grant extraction", "tests/test_grant_extract.py"),
     ("grant scoring", "tests/test_grant_score.py"),
     ("grant drafting", "tests/test_grant_draft.py"),
+    ("grant local draft", "tests/test_grant_localdraft.py"),
 ]
 
 
